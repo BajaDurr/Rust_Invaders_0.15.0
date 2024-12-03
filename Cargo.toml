@@ -1,0 +1,36 @@
+[package]
+name = "invaders"
+version = "0.3.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+bevy_asset_loader = "0.22.0"
+
+rand = "0.8.5"
+
+[dependencies.bevy]
+version = "0.15.0"
+features = [
+    "bevy_asset",
+    "bevy_audio",
+    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "multi_threaded",
+    "png",
+    "vorbis",
+    "x11",
+    "file_watcher",
+    "default_font",
+    "webgl2",
+]
+
+[workspace]
+resolver = "2" # Important! wgpu/Bevy needs this!
+
+# Enable max optimizations for dependencies, excluding rust-invaders code:
+[profile.dev.package."*"]
+opt-level = 3
