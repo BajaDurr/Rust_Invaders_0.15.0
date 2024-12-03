@@ -1,13 +1,40 @@
+/*
+Project by https://github.com/jeremychone-channel/rust-invaders
+Modified by David Krotzer
+Last Modified: 12/03/2024
+
+Files Modified: main.rs, player.rs, components.rs
+Added Assets: player_a_01_dimmed.png, *.ogg 
+
+*** PERSONAL PROJECT ( NOT FOR REDISTRIBUTION ) ***
+Programming Language: Rust
+Game Engine: Bevy
+
+Bevy version: 0.15.0
+
+--Notes for Submission--
+
+Not all FSM's fully implemented 
+
+Finished: PlayerState, AudioState
+
+Partial: GameState, MovementState
+
+*/
+
+
+
 #![allow(unused)] // silence unused warnings while exploring (to comment out)
 
+//packages
 use bevy::audio::Volume;
 use bevy::color::palettes::css::WHITE;
 use bevy::ecs::world;
 use bevy::math::bounding::IntersectsVolume;
-//use bevy_audio;
 use bevy::math::{bounding::Aabb2d, Vec3Swizzles};
 use bevy::{prelude::*, state};
 use bevy::window::PrimaryWindow;
+//crates
 use components::{
 	Enemy, Explosion, ExplosionTimer, ExplosionToSpawn, FromEnemy, FromPlayer, Laser, Movable,
 	Player, SpriteSize, Velocity,
@@ -16,7 +43,7 @@ use enemy::EnemyPlugin;
 use player::PlayerPlugin;
 use std::collections::HashSet;
 
-
+//mods (inheritance)
 mod components;
 mod enemy;
 mod player;
@@ -25,7 +52,7 @@ mod player;
 // region:    --- Asset Constants
 
 const PLAYER_SPRITE: &str = "player_a_01.png"; // Normal sprite
-const PLAYER_DIMMED_SPRITE: &str = "player_a_01_dimmed.png"; // Dimmed sprite
+const PLAYER_DIMMED_SPRITE: &str = "player_a_01_dimmed.png"; // Dimmed sprite (for invincibility state)
 const PLAYER_SIZE: (f32, f32) = (144., 75.);
 const PLAYER_LASER_SPRITE: &str = "laser_a_01.png";
 const PLAYER_LASER_SIZE: (f32, f32) = (9., 54.);
@@ -82,6 +109,7 @@ struct GameTextures {
 #[derive(Resource)]
 struct EnemyCount(u32);
 
+// TODO
 #[derive(Debug, Clone, Eq, PartialEq, Hash, States)]
 enum GameState {
     Playing,
@@ -100,8 +128,7 @@ struct AudioState {
     gameover_sfx: Handle<AudioSource>, // Game over sound effect
 
 }
-
-
+// (TODO) Include invincibility state
 #[derive(Resource)]
 struct PlayerState {
 	on: bool,       // alive
@@ -129,29 +156,26 @@ impl PlayerState {
 // endregion: --- Resources
 
 fn main() {
-	App::new()
+	App::new()	//main app builder
 		.insert_resource(ClearColor(Color::srgb(0.04, 0.04, 0.04)))
 		.add_plugins(DefaultPlugins.set(WindowPlugin {
 			primary_window: Some(Window {
 				title: "Rust Invaders!".into(),
-				resolution: (SCREEN_HEIGHT, SCREEN_WIDTH).into(),
-				resizable: false,
-				// position window (for tutorial)
-				// position: WindowPosition::At(IVec2::new(2780, 4900)),
+				resolution: (SCREEN_HEIGHT, SCREEN_WIDTH).into(), //598/676
+				resizable: false,	// lock window 
 				..Default::default()
 			}),
 			..Default::default()
 		}))
 		.add_plugins(PlayerPlugin)
 		.add_plugins(EnemyPlugin)
-		//.add_systems(Update, handle_game_state_input) // Handle state transitions
 		.add_systems(OnEnter(GameState::Playing), setup_playing)
-        .add_systems(Update, game_logic.run_if(in_state(GameState::Playing)))
-		.add_systems(OnEnter(GameState::Paused), enter_pause_state) // Enter Paused state
-      //  .add_systems(OnEnter(GameState::Paused), pause_game)
-	    .add_systems(Update, handle_pause_input.run_if(in_state(GameState::Paused))) // Run input handling in Pause
-		.add_systems(OnExit(GameState::Paused), exit_pause_state) // Exit Paused state
-        .add_systems(OnEnter(GameState::GameOver), game_over_screen)
+        .add_systems(Update, game_logic.run_if(in_state(GameState::Playing))) //logic
+		/*Unfinished States */
+	//	.add_systems(OnEnter(GameState::Paused), enter_pause_state) // Enter Paused state    
+	//  .add_systems(Update, handle_pause_input.run_if(in_state(GameState::Paused))) // Run input handling in Pause
+	//	.add_systems(OnExit(GameState::Paused), exit_pause_state) // Exit Paused state
+    //  .add_systems(OnEnter(GameState::GameOver), game_over_screen)
 		.add_systems(Startup, setup_system)
 		.add_systems(Update, movable_system)
 		.add_systems(Update, player_laser_hit_enemy_system)
@@ -163,6 +187,8 @@ fn main() {
 		.run();
 }
 
+
+//main setup for assets and textures
 fn setup_system(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
@@ -205,24 +231,25 @@ fn setup_system(
 	let bgm = asset_server.load("lasagna.ogg");            // Background Music
     let shoot_sfx = asset_server.load("pew.ogg"); // Shoot Sound Effect
     let boom_sfx = asset_server.load("deltarune_boom.ogg");   // Boom Sound Effect
-    let gameover_sfx = asset_server.load("gameover.ogg"); // Game Over Sound Effect"");
+    let gameover_sfx = asset_server.load("gameover.ogg"); // Game Over Sound Effect"");   // TODO
 
 	commands.insert_resource(AudioState {
         bgm,
         shoot_sfx,
         boom_sfx,
-        gameover_sfx,
+        gameover_sfx, // TODO
     });
 
 	// Spawn background music player
 
     commands.spawn(( (
 		AudioPlayer::<AudioSource>( asset_server.load("lasagna.ogg"))), 
-		PlaybackSettings::LOOP.with_volume(Volume::new(0.8)),
+		PlaybackSettings::LOOP.with_volume(Volume::new(0.8)),	// loops bgm and lowers volume to 80% of source
 	));
 	
 }
 
+// playermovement
 fn movable_system(
 	mut commands: Commands,
 	time: Res<Time>,
@@ -300,6 +327,7 @@ fn player_laser_hit_enemy_system(
 				commands.entity(laser_entity).despawn();
 				despawned_entities.insert(laser_entity);
 
+				// spawn the explosion sfx
 				commands.spawn(( (
 				AudioPlayer::<AudioSource>( asset_server.load("deltarune_boom.ogg")),
 				PlaybackSettings::ONCE.with_volume(Volume::new(0.3)))));
@@ -356,6 +384,7 @@ fn enemy_laser_hit_player_system(
 
 				// spawn the explosionToSpawn
 				commands.spawn(ExplosionToSpawn(player_tf.translation));
+				// spawn the explosion sfx
 				commands.spawn(( (
 					AudioPlayer::<AudioSource>( asset_server.load("deltarune_boom.ogg")),
 					PlaybackSettings::ONCE.with_volume(Volume::new(0.3)))));
@@ -411,6 +440,7 @@ fn explosion_animation_system(
 	}
 }
 
+// state when first spawned (1s)
 fn invincibility_timer_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -424,6 +454,7 @@ fn invincibility_timer_system(
     }
 }
 
+// handles the switch from dimmed to normal player sprite
 fn invincibility_sprite_switch_system(
     mut query: Query<(Entity, &mut Sprite, Option<&Invincible>), With<Player>>,
     game_textures: Res<GameTextures>,
@@ -440,6 +471,7 @@ fn invincibility_sprite_switch_system(
     }
 }
 
+// how that movement system state would work  (Event Listener (i.e. Playing --Key P--> Paused ))
 fn handle_game_state_input(
     mut state: ResMut<NextState<GameState>>,
     kb: Res<ButtonInput<KeyCode>>,
@@ -461,7 +493,7 @@ fn setup_playing(mut commands: Commands) {
 
 fn game_over_screen() {
     println!("Game Over!");
-    // Add game-over logic, like showing a menu or resetting the game
+    // (TODO) game over logic should go here
 }
 
 fn game_logic() {
@@ -473,13 +505,15 @@ fn pause_game() {
     println!("Game is Paused.");
 }
 
+// (TODO) Sends Playing state to Paused state
 fn enter_pause_state(mut commands: Commands, asset_server: Res<AssetServer>) {
     println!("Game is now Paused");
 
-    // Add a pause menu UI
+    // pause menu UI
+	// TODO: Update to 0,15.0 (Not Working)
     commands.spawn((
         Text::new("Paused\nPress R to Resume\nPress Q to Quit"),
-		//	TextLayout::new_with_justify(JustifyText::Center),
+		//	TextLayout::new_with_justify(JustifyText::Center),  //???
             TextFont {
                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                 font_size: 50.0,
@@ -487,13 +521,12 @@ fn enter_pause_state(mut commands: Commands, asset_server: Res<AssetServer>) {
                 
                 
             },
-			//TextColor(WHITE.into(),
+			//TextColor(WHITE.into(), //may be depricated
 		)
         
-     //   PauseMenu, // Marker component to easily identify and remove the pause menu later
+     //   PauseMenu, // Marker component (identify)
     );
 }
-
 
 fn exit_pause_state(mut commands: Commands, query: Query<Entity, With<PauseMenu>>) {
     println!("Exiting Pause State");
@@ -504,6 +537,7 @@ fn exit_pause_state(mut commands: Commands, query: Query<Entity, With<PauseMenu>
     }
 }
 
+// TODO: Unfunctional (Like other fn, has issues with moving state to state)
 fn handle_pause_input(
     mut state: ResMut<NextState<GameState>>,
 	kb: Res<ButtonInput<KeyCode>>,
